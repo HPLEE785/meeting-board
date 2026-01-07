@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6x6 Meeting Buttons (A/B/C)</title>
+
+<style>
+:root{
+  --bg:#e9eef6;
+  --text:#1b2430;
+
+  /* 狀態色 */
+  --A-bg:#0b3a7a;
+  --A-fg:#ffffff;
+
+  --B-bg:#a04400;
+  --B-fg:#ffffff;
+
+  --C-bg:#5f5f5f;
+  --C-fg:#ffffff;
+
+  --line:#999;
+}
+
+body{
+  margin:0;
+  font-family: system-ui,"Microsoft JhengHei";
+  background:var(--bg);
+  color:var(--text);
+}
+
+/* ===== Grid ===== */
+.grid{
+  display:grid;
+  grid-template-columns: repeat(6,1fr);
+  gap:10px;
+}
+
+/* ===== Buttons ===== */
+.dept-btn{
+  width:100%;
+  border:0;
+  border-radius:6px;
+  padding:14px 6px;
+  font-size:16px;
+  font-weight:300;
+  user-select:none;
+  -webkit-tap-highlight-color: transparent;
+}
+.dept-btn:active{ filter: brightness(.9); }
+
+.state-A{ background:var(--A-bg); color:var(--A-fg); }
+.state-B{ background:var(--B-bg); color:var(--B-fg); }
+.state-C{ background:var(--C-bg); color:var(--C-fg); }
+
+/* ===== Button Area ===== */
+.button-area{
+  padding:12px;
+}
+
+/* ===== Start Meeting ===== */
+.start-wrap{
+  padding:10px 12px;
+  display:flex;
+  justify-content:center;
+}
+.start-btn{
+  width:100%;
+  max-width:480px;
+  border:1px solid #cfcfcf;
+  border-radius:6px;
+  padding:14px;
+  font-size:18px;
+  font-weight:900;
+  background:#ffffff;
+}
+.start-btn:active{ filter: brightness(.95); }
+
+/* ===== 固定 2 行空白 ===== */
+.spacer{
+  height:2.2em;   /* 一律 2 行 */
+}
+
+/* ===== Edit Area ===== */
+.edit-area{
+  padding:12px;
+}
+.cell{
+  background:transparent;
+  padding:0;
+}
+.edit{
+  width:50%;
+  margin:0 auto;
+  display:block;
+
+  border:1.5px solid var(--line);
+  border-radius:4px;
+  padding:8px 6px;
+  font-size:14px;
+  font-weight:650;
+  background:transparent;
+}
+.edit:focus{
+  border-color:#0b3a7a;
+}
+</style>
+</head>
+
+<body>
+
+<!-- Button 區 -->
+<div class="button-area">
+  <div class="grid" id="btnGrid"></div>
+</div>
+
+<!-- 開始會議 -->
+<div class="start-wrap">
+  <button id="startBtn" class="start-btn">開始會議（全部變 A）</button>
+</div>
+
+<!-- 固定 2 行空白 -->
+<div class="spacer"></div>
+
+<!-- Edit 區 -->
+<div class="edit-area">
+  <div class="grid" id="editGrid"></div>
+</div>
+
+<script>
+const TOTAL = 36;
+
+/* 預設名稱 */
+const defaults = [
+  "管理部","製造部","採購部","業務一部","業務二部","美國公司",
+  "興業業務","品保部","研一部","研二部","研三部","研五部",
+  "研六部","研七部","創發部","電控部","治具部","視覺部",
+  "視覺部","大陸研發","台中售服","高雄售服","新竹售服","桃園售服",
+  "大陸售服","_","_","_","_","_",
+  "_","_","_","_","_","_"
+];
+
+const KEY_LABELS="grid_labels_final";
+const KEY_STATES="grid_states_final";
+
+function loadArr(key,fallback){
+  try{
+    const v=JSON.parse(localStorage.getItem(key));
+    return Array.isArray(v)&&v.length===TOTAL?v:fallback;
+  }catch{return fallback;}
+}
+
+let labels=loadArr(KEY_LABELS,[...defaults]);
+let states=loadArr(KEY_STATES,Array(TOTAL).fill("C"));
+
+const btnGrid=document.getElementById("btnGrid");
+const editGrid=document.getElementById("editGrid");
+const startBtn=document.getElementById("startBtn");
+
+const btnEls=[];
+
+function saveLabels(){localStorage.setItem(KEY_LABELS,JSON.stringify(labels));}
+function saveStates(){localStorage.setItem(KEY_STATES,JSON.stringify(states));}
+
+function apply(btn,s){
+  btn.classList.remove("state-A","state-B","state-C");
+  btn.classList.add("state-"+s);
+}
+
+function clickBtn(i){
+  if(states[i]==="A"){
+    states.forEach((s,k)=>{
+      if(k!==i && s==="B"){
+        states[k]="C";
+        apply(btnEls[k],"C");
+      }
+    });
+    states[i]="B";
+  }else if(states[i]==="B"){
+    states[i]="C";
+  }else{
+    states[i]="A";
+  }
+  apply(btnEls[i],states[i]);
+  saveStates();
+}
+
+/* Buttons */
+for(let i=0;i<TOTAL;i++){
+  const b=document.createElement("button");
+  b.className="dept-btn";
+  b.textContent=labels[i];
+  apply(b,states[i]);
+  b.onclick=()=>clickBtn(i);
+  btnEls.push(b);
+  btnGrid.appendChild(b);
+}
+
+/* Edits */
+for(let i=0;i<TOTAL;i++){
+  const cell=document.createElement("div");
+  cell.className="cell";
+  const inp=document.createElement("input");
+  inp.className="edit";
+  inp.value=labels[i];
+  let last=labels[i];
+
+  inp.oninput=()=>{ btnEls[i].textContent=inp.value; };
+  inp.onblur=()=>{
+    const t=inp.value.trim();
+    if(!t){
+      inp.value=last;
+      btnEls[i].textContent=last;
+      return;
+    }
+    last=t;
+    labels[i]=t;
+    btnEls[i].textContent=t;
+    saveLabels();
+  };
+
+  cell.appendChild(inp);
+  editGrid.appendChild(cell);
+}
+
+/* 開始會議：全部變 A */
+startBtn.onclick=()=>{
+  states=Array(TOTAL).fill("A");
+  saveStates();
+  btnEls.forEach(b=>apply(b,"A"));
+};
+</script>
+
+</body>
+</html>
