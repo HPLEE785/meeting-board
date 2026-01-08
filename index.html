@@ -1,10 +1,10 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="zh-Hant">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>6x6 Meeting Buttons (A/B/C)</title>
-
 <style>
 :root{
   --bg:#e9eef6;
@@ -61,9 +61,12 @@ body{
 
 /* ===== Start Meeting ===== */
 .start-wrap{
-  padding:10px 12px;
   display:flex;
+  gap:10px;
   justify-content:center;
+  align-items:center;
+  padding:12px;
+  margin-bottom: 16px;
 }
 .start-btn{
   width:100%;
@@ -105,29 +108,55 @@ body{
 .edit:focus{
   border-color:#0b3a7a;
 }
+/* ===== Memo Area ===== */
+.memo-area{
+  border-top:1px solid var(--line);
+  margin-top:6px;
+  padding-top:6px;
+}
+.memo{
+  width:100vw;
+  height:100vh;
+  box-sizing:border-box;
+  border:1.5px solid var(--line);
+  border-left:0;
+  border-right:0;
+  border-radius:0;
+  padding:12px;
+line-height:1.4;
+background:#ffffff;
+  resize:none;
+  font-size:23px;
+  font-weight:300;
+}
+.memo:focus{
+  outline:none;
+  border-color:#0b3a7a;
+}
+
+
+.labor-btn{min-width:120px;}
+
+.edit.readonly{background:#f5f5f5;}
 </style>
 </head>
-
 <body>
-
 <!-- Button 區 -->
 <div class="button-area">
-  <div class="grid" id="btnGrid"></div>
+<div class="grid" id="btnGrid"></div>
 </div>
-
 <!-- 開始會議 -->
-<div class="start-wrap">
-  <button id="startBtn" class="start-btn">開始會議 V1.1 </button>
+<div class="start-wrap"><button class="start-btn" id="startBtn">開始會議 V1.6 </button><button class="start-btn labor-btn" id="laborBtn">勞資會議</button></div>
+<!-- Memo：會議紀錄/提醒（全螢幕大小） -->
+<div class="memo-area">
+<textarea class="memo" id="memo" placeholder="在這裡記錄會議重點、提醒事項…"></textarea>
 </div>
-
 <!-- 固定 2 行空白 -->
 <div class="spacer"></div>
-
 <!-- Edit 區 -->
 <div class="edit-area">
-  <div class="grid" id="editGrid"></div>
+<div class="grid" id="editGrid"></div>
 </div>
-
 <script>
 const TOTAL = 36;
 
@@ -143,6 +172,8 @@ const defaults = [
 
 const KEY_LABELS="grid_labels_final";
 const KEY_STATES="grid_states_final";
+const KEY_MEMO="meeting_memo_final";
+
 
 function loadArr(key,fallback){
   try{
@@ -157,11 +188,74 @@ let states=loadArr(KEY_STATES,Array(TOTAL).fill("C"));
 const btnGrid=document.getElementById("btnGrid");
 const editGrid=document.getElementById("editGrid");
 const startBtn=document.getElementById("startBtn");
+const laborBtn=document.getElementById("laborBtn");
+const memoEl=document.getElementById("memo");
 
 const btnEls=[];
+const editEls=[];
+
+/* Memo：載入/保存 */
+try{
+  memoEl.value = localStorage.getItem(KEY_MEMO) || "";
+}catch{}
+memoEl.addEventListener("input", ()=>{
+  try{ localStorage.setItem(KEY_MEMO, memoEl.value); }catch{}
+  updateNoticeFromMemo();
+});
+
 
 function saveLabels(){localStorage.setItem(KEY_LABELS,JSON.stringify(labels));}
 function saveStates(){localStorage.setItem(KEY_STATES,JSON.stringify(states));}
+
+function setEditValue(i, val){
+  if(i<0 || i>=TOTAL) return;
+  editEls[i].value = val;
+  labels[i] = val;
+  btnEls[i].textContent = val;
+  saveLabels();
+}
+
+function clearAllLabor(){
+  let changed=false;
+  for(let i=0;i<TOTAL-1;i++){
+    if(editEls[i].value.trim()==="勞資會議"){
+      setEditValue(i,"");
+      changed=true;
+    }
+  }
+  return changed;
+}
+
+function lastFilledIndex(){
+  for(let i=TOTAL-2;i>=0;i--){
+    if(editEls[i].value.trim()!=="") return i;
+  }
+  return -1;
+}
+
+function fillLaborNext(){
+  const last=lastFilledIndex();
+  let target = (last<0)?0:(last+1);
+  if(target> TOTAL-2) target = TOTAL-2;
+  setEditValue(target,"勞資會議");
+}
+
+function updateNoticeFromMemo(){
+  const has = (memoEl.value.trim()!=="");
+  if(has){
+    // 最後一格保留給注意事項
+    editEls[TOTAL-1].value = "注意事項";
+    labels[TOTAL-1] = "注意事項";
+    btnEls[TOTAL-1].textContent = "注意事項";
+    saveLabels();
+  }else{
+    // 若 Memo 清空，注意事項也清空
+    editEls[TOTAL-1].value = "";
+    labels[TOTAL-1] = "";
+    btnEls[TOTAL-1].textContent = "";
+    saveLabels();
+  }
+}
 
 function apply(btn,s){
   btn.classList.remove("state-A","state-B","state-C");
@@ -204,36 +298,50 @@ for(let i=0;i<TOTAL;i++){
   const inp=document.createElement("input");
   inp.className="edit";
   inp.value=labels[i];
+  if(i===TOTAL-1){
+    inp.readOnly=true;
+    inp.classList.add("readonly");
+  }
   let last=labels[i];
 
-  inp.oninput=()=>{ btnEls[i].textContent=inp.value; };
+  inp.oninput=()=>{
+    if(i===TOTAL-1) return;
+    btnEls[i].textContent=inp.value;
+  };
   inp.onblur=()=>{
+    if(i===TOTAL-1) return;
     const t=inp.value.trim();
-    if(!t){
-      inp.value=last;
-      btnEls[i].textContent=last;
-      return;
-    }
     last=t;
     labels[i]=t;
     btnEls[i].textContent=t;
     saveLabels();
   };
 
+  editEls.push(inp);
   cell.appendChild(inp);
   editGrid.appendChild(cell);
 }
 
+// 依 Memo 內容同步「注意事項」
+updateNoticeFromMemo();
+
 /* 開始會議：全部變 A */
+laborBtn.onclick=()=>{
+  fillLaborNext();
+};
+
 startBtn.onclick=()=>{
+  // 1) 狀態歸零
   states=Array(TOTAL).fill("A");
   saveStates();
   btnEls.forEach(b=>apply(b,"A"));
+
+  // 2) 清除所有「勞資會議」
+  clearAllLabor();
+
+  // 3) 依 Memo 內容維持/清空「注意事項」
+  updateNoticeFromMemo();
 };
 </script>
-
 </body>
 </html>
-
-
-
